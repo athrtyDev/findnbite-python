@@ -1,0 +1,27 @@
+{% extends 'admin/master.html' %}
+
+{% block body %}
+  <div class="container">
+    <h1>Welcome to Restaurant Admin</h1>
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Restaurants</h5>
+            <p class="card-text">Manage restaurant information, images, and details.</p>
+            <a href="{{ url_for('restaurants.index_view') }}" class="btn btn-primary">Manage Restaurants</a>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Hashtags</h5>
+            <p class="card-text">Manage hashtags for restaurant categorization.</p>
+            <a href="{{ url_for('hashtags.index_view') }}" class="btn btn-primary">Manage Hashtags</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %} 
