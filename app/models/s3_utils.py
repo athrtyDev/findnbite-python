@@ -4,6 +4,8 @@ import mimetypes
 from datetime import datetime
 from werkzeug.utils import secure_filename
 import uuid
+from PIL import Image
+from io import BytesIO
 
 class S3Uploader:
     def __init__(self):
@@ -34,33 +36,76 @@ class S3Uploader:
             print(f"Failed to connect to AWS S3: {str(e)}")
             raise
 
-    def upload_file(self, file_data, folder):
+    def compress_image(self, image_data, max_size=(800, 800), quality=85):
         """
-        Upload a file to S3
-        :param file_data: File data (can be FileStorage or bytes)
-        :param folder: S3 folder name (e.g., 'logos', 'images', 'menus')
-        :return: URL of uploaded file
+        Compress image using PIL
+        :param image_data: Binary image data
+        :param max_size: Maximum dimensions (width, height)
+        :param quality: JPEG compression quality (1-100)
+        :return: Compressed image data in bytes
+        """
+        try:
+            # Open image using PIL
+            img = Image.open(BytesIO(image_data))
+
+            # Convert to RGB if necessary (for PNG with transparency)
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+
+            # Resize if larger than max_size
+            if img.size[0] > max_size[0] or img.size[1] > max_size[1]:
+                img.thumbnail(max_size, Image.Resampling.LANCZOS)
+
+            # Save compressed image to bytes
+            output = BytesIO()
+            img.save(output, format='JPEG', quality=quality, optimize=True)
+            return output.getvalue()
+        except Exception as e:
+            print(f"Error compressing image: {str(e)}")
+            return image_data  # Return original if compression fails
+
+    def upload_file(self, file_data, folder, restaurant_name=None):
+        """
+        Upload a file to S3 with compression for images
+        :param file_data: File data to upload
+        :param folder: Folder type (logos, images, menus)
+        :param restaurant_name: Name of the restaurant for folder organization
         """
         try:
             # Generate unique filename
             unique_filename = f"{uuid.uuid4().hex}"
             
-            # Handle different file types
             if hasattr(file_data, 'filename'):
                 # FileStorage object
                 original_filename = secure_filename(file_data.filename)
                 content = file_data.read()
                 file_ext = os.path.splitext(original_filename)[1].lower()
                 content_type = mimetypes.guess_type(original_filename)[0]
+
+                # Compress if it's an image
+                if content_type and content_type.startswith('image/'):
+                    content = self.compress_image(
+                        content,
+                        max_size=(400, 400),
+                        quality=90
+                    )
+                    file_ext = '.jpg'
+                    content_type = 'image/jpeg'
             else:
-                # Bytes object
                 content = file_data
-                file_ext = '.jpg'  # Default to jpg for binary data
+                file_ext = '.jpg'
                 content_type = 'image/jpeg'
 
             # Create final filename
             final_filename = f"{unique_filename}{file_ext}"
-            s3_path = f"restaurants/{folder}/{final_filename}"
+            
+            # Create S3 path based on restaurant name
+            if restaurant_name:
+                # Clean restaurant name (remove spaces and special characters)
+                clean_name = "".join(c for c in restaurant_name if c.isalnum()).lower()
+                s3_path = f"restaurants/{clean_name}/{folder}/{final_filename}"
+            else:
+                s3_path = f"restaurants/{folder}/{final_filename}"
             
             # Upload to S3
             self.s3.put_object(

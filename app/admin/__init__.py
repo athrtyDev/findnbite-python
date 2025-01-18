@@ -125,13 +125,13 @@ class RestaurantsView(ModelView):
     column_sortable_list = ('name', 'rating')
     form = RestaurantForm
     
-    def _handle_file_upload(self, file, folder):
+    def _handle_file_upload(self, file, folder, restaurant_name=None):
         """Handle file upload to S3"""
         if not file:
             return None
         if isinstance(file, str):
             return file  # Return existing URL
-        return s3_uploader.upload_file(file, folder)
+        return s3_uploader.upload_file(file, folder, restaurant_name)
     
     def edit_form(self, obj=None):
         """Populate form with existing data when editing"""
@@ -148,6 +148,9 @@ class RestaurantsView(ModelView):
 
     def on_model_change(self, form, model, is_created):
         try:
+            # Get restaurant name for folder structure
+            restaurant_name = model.get('name')
+            
             # Create a clean model dictionary
             clean_model = {
                 'name': model.get('name'),
@@ -168,7 +171,7 @@ class RestaurantsView(ModelView):
                 if isinstance(form.logo.data, str):
                     clean_model['logo'] = form.logo.data
                 else:
-                    logo_url = self._handle_file_upload(form.logo.data, 'logos')
+                    logo_url = self._handle_file_upload(form.logo.data, 'logos', restaurant_name)
                     if logo_url:
                         clean_model['logo'] = logo_url
             
@@ -178,10 +181,9 @@ class RestaurantsView(ModelView):
                 if isinstance(form.images.data, list):
                     for image in form.images.data:
                         if isinstance(image, str):
-                            # Keep existing URL
                             image_urls.append(image)
                         elif image and hasattr(image, 'filename'):
-                            url = self._handle_file_upload(image, 'images')
+                            url = self._handle_file_upload(image, 'images', restaurant_name)
                             if url:
                                 image_urls.append(url)
                 if image_urls:
@@ -193,10 +195,9 @@ class RestaurantsView(ModelView):
                 if isinstance(form.menuImages.data, list):
                     for menu in form.menuImages.data:
                         if isinstance(menu, str):
-                            # Keep existing URL
                             menu_urls.append(menu)
                         elif menu and hasattr(menu, 'filename'):
-                            url = self._handle_file_upload(menu, 'menus')
+                            url = self._handle_file_upload(menu, 'menus', restaurant_name)
                             if url:
                                 menu_urls.append(url)
                 if menu_urls:
